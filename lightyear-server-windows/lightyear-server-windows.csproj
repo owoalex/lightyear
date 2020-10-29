@@ -77,6 +77,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="NetworkFrame.cs" />
+    <Compile Include="FrameServer.cs" />
     <Compile Include="Setup.cs">
       <SubType>Form</SubType>
     </Compile>
