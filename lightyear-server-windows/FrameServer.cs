@@ -12,6 +12,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace lightyear_server_windows
@@ -32,6 +33,8 @@ namespace lightyear_server_windows
         uint timestamp;
         long startMilliseconds;
         uint lastFrame;
+        UdpClient udpSendClient;
+        ushort currentNetworkFrameId;
         public FrameServer(int networkBaudRate, int fps, String remoteHost, int remotePort)
         {
             try
@@ -48,10 +51,42 @@ namespace lightyear_server_windows
             this.remotePort = remotePort;
             this.timestamp = 0;
             this.encoderParameters = new EncoderParameters(1);
-            this.encoderParameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 20L);
+            this.encoderParameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality,10L);
             this.imageCodecInfo = GetEncoder(ImageFormat.Jpeg);
             this.sessionId = (uint)rnd.NextLong();
             this.startMilliseconds = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+            this.udpSendClient = new UdpClient(this.remoteHost, this.remotePort);
+            this.currentNetworkFrameId = 0;
+        }
+
+        public ushort GetNetworkFrameId() 
+        {
+            return currentNetworkFrameId++;
+        }
+        public void StartServerLoop()
+        {
+            ThreadStart childRef = new ThreadStart(FrameServerLoop);
+            Thread childThread = new Thread(childRef);
+            childThread.Start();
+            Console.WriteLine("Spawned Child Thread");
+        }
+
+        private void FrameServerLoop() 
+        {
+            double currentTime;
+            double nextFrameTime;
+            while (true)
+            {
+                currentTime = (DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond);
+                nextFrameTime = currentTime + (1000d / fps);
+                //Console.WriteLine("bruh" + );
+                this.SendFrame();
+                while (nextFrameTime > (DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond))
+                {
+
+                }
+                //Thread.Sleep(1000 / fps);
+            }
         }
 
         private void udpServer()
@@ -149,8 +184,8 @@ namespace lightyear_server_windows
                         }
                         //File.WriteAllBytes("foo.jpeg", result);
 
-                        NetworkFrame netFrame = new NetworkFrame(jpegData, (ushort) rnd.Next(), this.timestamp);
-                        netFrame.SendFrame(this.remoteHost, this.remotePort, this.sessionId);
+                        NetworkFrame netFrame = new NetworkFrame(jpegData, GetNetworkFrameId(), this.timestamp);
+                        netFrame.SendFrame(this.udpSendClient, this.sessionId);
                     }
                 }
             }
