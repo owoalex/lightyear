@@ -31,6 +31,7 @@ namespace lightyear_server_windows
         public void StartFrameServer(int networkBaudRate, int fps, String remoteHost, int remotePort)
         {
             this.frameServer = new FrameServer(networkBaudRate, fps, remoteHost, remotePort);
+            frameServer.StartServerLoop();
         }
 
         public void StartLoop()
@@ -43,18 +44,13 @@ namespace lightyear_server_windows
             button1.Text = "Test";
             //SetupServer setupServer = new SetupServer();
             //setupServer.StartServer(this);
+            
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+
+        private void notifyIcon1_MouseDoubleClick(object sender, MouseEventArgs e)
         {
-            if (enableOutput)
-            {
-                frameServer.SendFrame();
-            }
-            else 
-            {
-                //Debug.WriteLine("Output Disabled");
-            }
+
         }
     }
 }
