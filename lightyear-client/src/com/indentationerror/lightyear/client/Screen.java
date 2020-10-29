@@ -6,6 +6,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URL;
 
 public class Screen {
     int horizontalResolution;
@@ -20,7 +21,11 @@ public class Screen {
         this.fps = fps;
 
         frame = new JFrame("Lightyear Viewer");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+        URL url = ClassLoader.getSystemClassLoader().getResource("com/indentationerror/lightyear/assets/icon.png");
+        ImageIcon ico = new ImageIcon(url);
+        frame.setIconImage(ico.getImage());
 
         this.bufferedImage = new BufferedImage(horizontalResolution, verticalResolution,BufferedImage.TYPE_INT_RGB);
 
