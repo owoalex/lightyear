@@ -108,22 +108,38 @@ public class DataReceiveServer implements Runnable {
                 }
                 nfi.recordNewPacket();
                 if (nfi.getPacketTotal() == nfi.getPacketsReceived()) {
-                    //System.out.println("NETWORK FRAME COMPLETED");
-                    //System.out.println("timestamp    " + timestamp);
-                    //System.out.println("ssrc         " + ssrc);
-                    //System.out.println("frame id     " + frameId);
                     byte[] netFrameFinal = new byte[nfi.getPacketTotal() * 512];
                     for (int i=0; i<(nfi.getPacketTotal() * 512); i++) {
                         netFrameFinal[i] = this.dataBuffer[(nfi.getLocation() + i) % this.dataBuffer.length];
                     }
-                    //Path path = Paths.get("frame.jpg");
-                    //try {
-                    //    Files.write(path, netFrameFinal);
-                    //} catch (IOException e) {
-                    //    e.printStackTrace();
-                    //}
-                    outputScreen.redrawImage(netFrameFinal);
-                    //throw new NumberFormatException();
+
+                    if (unsignedByteToInt(netFrameFinal[0]) == 0x6A &&
+                            unsignedByteToInt(netFrameFinal[1]) == 0x70 &&
+                            unsignedByteToInt(netFrameFinal[2]) == 0x65 &&
+                            unsignedByteToInt(netFrameFinal[3]) == 0x67) {
+                        byte[] jpegData = new byte[netFrameFinal.length - 4];
+                        for (int i=0; i<(netFrameFinal.length - 4); i++) {
+                            jpegData[i] = netFrameFinal[i+4];
+                        }
+                        System.out.println("JPEG FRAME");
+                        outputScreen.drawJpeg(jpegData);
+                    } else if (unsignedByteToInt(netFrameFinal[0]) == 0x64 &&
+                            unsignedByteToInt(netFrameFinal[1]) == 0x64 &&
+                            unsignedByteToInt(netFrameFinal[2]) == 0x63 &&
+                            unsignedByteToInt(netFrameFinal[3]) == 0x74) {
+                        byte[] ycbcrData = new byte[netFrameFinal.length - 4];
+                        for (int i=0; i<(netFrameFinal.length - 4); i++) {
+                            ycbcrData[i] = netFrameFinal[i+4];
+                        }
+                        System.out.println("YCBCR FRAME");
+                        outputScreen.drawDiff(ycbcrData);
+                    } else {
+                        System.out.println("NO FRAME");
+                        System.out.println(unsignedByteToInt(netFrameFinal[0]));
+                        System.out.println(unsignedByteToInt(netFrameFinal[1]));
+                        System.out.println(unsignedByteToInt(netFrameFinal[2]));
+                        System.out.println(unsignedByteToInt(netFrameFinal[3]));
+                    }
                 }
             } else {
             }
