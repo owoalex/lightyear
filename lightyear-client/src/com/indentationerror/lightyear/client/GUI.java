@@ -62,6 +62,18 @@ public class GUI {
         System.setProperty("awt.useSystemAAFontSettings","on");
         System.setProperty("swing.aatext", "true");
 
+        try {
+            UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
+
         URL fontUrl = ClassLoader.getSystemClassLoader().getResource("com/indentationerror/lightyear/assets/Sen-Bold.ttf");
         try {
             File fontFile = Paths.get(fontUrl.toURI()).toFile();
@@ -190,6 +202,7 @@ public class GUI {
                     this.horizontalResolution = jsonObject.get("resolution").get(0).asInt();
                     this.verticalResolution = jsonObject.get("resolution").get(1).asInt();
                     this.screen = new Screen(this.horizontalResolution,this.verticalResolution,this.fps);
+                    this.screen.setFont(this.font);
                     this.drs = new DataReceiveServer(3254);
                     this.drs.setOutputScreen(this.screen);
                     this.drsThread = new Thread(this.drs);
