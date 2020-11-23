@@ -35,6 +35,19 @@ namespace lightyear_server_windows
         uint lastFrame;
         UdpClient udpSendClient;
         ushort currentNetworkFrameId;
+
+        int frameWidth;
+        int frameHeight;
+        ImageFrameComponent currentFrameY;
+        ImageFrameComponent currentFrameCb;
+        ImageFrameComponent currentFrameCr;
+        ImageFrameComponent diffFrameY;
+        ImageFrameComponent diffFrameCb;
+        ImageFrameComponent diffFrameCr;
+        ImageFrameComponent remoteFrameY;
+        ImageFrameComponent remoteFrameCb;
+        ImageFrameComponent remoteFrameCr;
+
         public FrameServer(int networkBaudRate, int fps, String remoteHost, int remotePort)
         {
             try
@@ -81,10 +94,12 @@ namespace lightyear_server_windows
                 nextFrameTime = currentTime + (1000d / fps);
                 //Console.WriteLine("bruh" + );
                 this.SendFrame();
+                //Console.WriteLine("Sleep");
                 while (nextFrameTime > (DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond))
                 {
 
                 }
+                //Console.WriteLine("Wake");
                 //Thread.Sleep(1000 / fps);
             }
         }
@@ -138,7 +153,7 @@ namespace lightyear_server_windows
             DesktopFrame frame = null;
             //Debug.WriteLine("Frame Time" + (timestamp % ((uint)(1000 / fps))));
             timestamp = (uint) ((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
-            //Debug.WriteLine("Frame Time " + timestamp);
+            //Debug.WriteLine("Frame Time ST " + timestamp);
             if ((timestamp - lastFrame) > (1000 / fps))
             {
                 lastFrame = timestamp;
@@ -163,7 +178,7 @@ namespace lightyear_server_windows
                     //   Debug.WriteLine(String.Format("Moved: {0} -> {1}", moved.Source, moved.Destination));
                     //moved.Destination.Location;
                     //moved.Destination.Size;
-                    bool updatedRegions = false;
+                    bool updatedRegions = true;
                     //}
                     foreach (var updated in frame.UpdatedRegions)
                     {
@@ -176,19 +191,186 @@ namespace lightyear_server_windows
 
                     if (updatedRegions)
                     {
-                        byte[] jpegData = null;
-                        using (MemoryStream stream = new MemoryStream())
+                        bool exportJpeg = false;
+                        bool exportDiff = false;
+
+                        if (currentFrameY == null)
                         {
+                            this.frameWidth = frame.DesktopImage.Width;
+                            this.frameHeight = frame.DesktopImage.Height;
+                            currentFrameY = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            currentFrameCb = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            currentFrameCr = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            diffFrameY = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            diffFrameCb = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            diffFrameCr = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            remoteFrameY = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            remoteFrameCb = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+                            remoteFrameCr = new ImageFrameComponent(this.frameWidth, this.frameHeight, 1);
+
+                            exportJpeg = true;
+                            exportDiff = false;
+                        }
+                        else 
+                        {
+                            exportJpeg = false;
+                            exportDiff = true;
+                        }
+
+                        if (exportDiff)
+                        {
+                            //byte[] pngData = null;
+                            //MemoryStream stream = new MemoryStream();
+
+                            this.frameWidth = frame.DesktopImage.Width;
+                            this.frameHeight = frame.DesktopImage.Height;
+                            int blocksWidth = (int) Math.Ceiling(this.frameWidth / 8.0);
+                            int blocksHeight = (int) Math.Ceiling(this.frameHeight / 8.0);
+
+                            int timestampView = (int)((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
+                            //Debug.WriteLine("Frame Time Extract Frame RGB " + timestampView);
+
+                            System.Drawing.Rectangle rect = new System.Drawing.Rectangle(0, 0, frame.DesktopImage.Width, frame.DesktopImage.Height);
+                            System.Drawing.Imaging.BitmapData bmpData = frame.DesktopImage.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, frame.DesktopImage.PixelFormat);
+
+                            // Get the address of the first line.
+                            IntPtr ptr = bmpData.Scan0;
+
+                            // Declare an array to hold the bytes of the bitmap.
+                            int frameRgbBytesCount = bmpData.Stride * frame.DesktopImage.Height;
+                            byte[] rgbValues = new byte[frameRgbBytesCount];
+
+                            // Copy the RGB values into the array.
+                            System.Runtime.InteropServices.Marshal.Copy(ptr, rgbValues, 0, frameRgbBytesCount); 
+                            frame.DesktopImage.UnlockBits(bmpData);
+
+                            //timestampView = (int)((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
+                            //Debug.WriteLine("Frame Time BuildDiffsStart " + timestampView);
+                            int i = 0;
+                            int j = 0;
+                            for (int x = 0; x < this.frameWidth; x++)
+                            {
+                                for (int y = 0; y < this.frameHeight; y++)
+                                {
+                                    i = (y * frameWidth) + x;
+                                    j = ((y * frameWidth) + x) * 4;
+                                    //currentPixel = frame.DesktopImage.GetPixel(x,y);
+                                    this.remoteFrameY.image[i] = (byte)(this.remoteFrameY.image[i] + this.diffFrameY.image[i]);
+                                    this.remoteFrameCb.image[i] = (byte)(this.remoteFrameCb.image[i] + this.diffFrameCb.image[i]);
+                                    this.remoteFrameCr.image[i] = (byte)(this.remoteFrameCr.image[i] + this.diffFrameCr.image[i]);
+                                    //this.currentFrameY.image[(y * frameWidth) + x] = (byte)((currentPixel.R / 256.0 * 65.481) + (currentPixel.G / 256.0 * 128.553) + (currentPixel.B / 256.0 * 24.966) + 16);
+                                    //this.currentFrameCb.image[(y * frameWidth) + x] = (byte)(-(currentPixel.R / 256.0 * 37.797) - (currentPixel.G / 256.0 * 74.203) + (currentPixel.B / 256.0 * 112.0) + 128);
+                                    //this.currentFrameCr.image[(y * frameWidth) + x] = (byte)((currentPixel.R / 256.0 * 112.0) - (currentPixel.G / 256.0 * 93.786) - (currentPixel.B / 256.0 * 18.214) + 128);
+
+                                    this.currentFrameY.image[i] = (byte)((rgbValues[j] * 65 / 256) + (rgbValues[j+1] * 129 / 256) + (rgbValues[j+2] * 25 / 256) + 16);
+                                    this.currentFrameCb.image[i] = (byte)(-(rgbValues[j] * 38 / 256) - (rgbValues[j+1] * 74 / 256) + (rgbValues[j+2] * 112 / 256) + 128);
+                                    this.currentFrameCr.image[i] = (byte)((rgbValues[j] * 112 / 256) - (rgbValues[j+1] * 94 / 256) - (rgbValues[j+2] * 18 / 256) + 128);
+
+                                    this.diffFrameY.image[i] = (byte)(this.currentFrameY.image[i] - this.remoteFrameY.image[i]);
+                                    this.diffFrameCb.image[i] = (byte)(this.currentFrameCb.image[i] - this.remoteFrameCb.image[i]);
+                                    this.diffFrameCr.image[i] = (byte)(this.currentFrameCr.image[i] - this.remoteFrameCr.image[i]);
+                                }
+                            }
+                            //timestampView = (int)((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
+                            //Debug.WriteLine("Frame Time DDCT Convert " + timestampView);
+
+
+                            //this.currentFrameY = 
+
+                            //pngData = stream.ToArray();
+                            int DDCT_HEADER_LENGTH = 8;
+                            int DDCT_BLOCK_SIZE = 8;
+                            byte[] networkFrameData = new byte[DDCT_HEADER_LENGTH + this.currentFrameY.image.Length + (this.currentFrameY.image.Length/8)];
+                            networkFrameData[0] = 0x64;//d;
+                            networkFrameData[1] = 0x64;//d;
+                            networkFrameData[2] = 0x63;//c;
+                            networkFrameData[3] = 0x74;//t;
+                            networkFrameData[4] = 0x01;//ddct protocol v1;
+                            networkFrameData[5] = 0x01;//channel Y;
+                            networkFrameData[6] = 0x01;//subsampling level (1:1);
+                            networkFrameData[7] = 0x00;//reserved;
+                            //for (int i = 0; i < this.currentFrameY.image.Length; i++)
+                            //{
+                            //    networkFrameData[i + DDCT_HEADER_LENGTH] = (byte) this.diffFrameY.image[i];
+                            //}
+                            int byteCounter = 8;
+                            int runningLiteralsCountPosition = 0;
+                            
+                            for (int blkY = 0; blkY < (((this.frameHeight - 1) / DDCT_BLOCK_SIZE) + 1); blkY++)
+                            {
+                                for (int blkX = 0; blkX < (((this.frameWidth - 1) / DDCT_BLOCK_SIZE) + 1); blkX++)
+                                {
+                                    runningLiteralsCountPosition = byteCounter;
+                                    networkFrameData[runningLiteralsCountPosition] = 255;
+                                    for (int yOffset = 0; yOffset < DDCT_BLOCK_SIZE; yOffset++)
+                                    {
+                                        for (int xOffset = 0; xOffset < DDCT_BLOCK_SIZE; xOffset++)
+                                        {
+                                            if (this.diffFrameY.image[(((blkY * DDCT_BLOCK_SIZE) + yOffset) * frameWidth) + ((blkX * DDCT_BLOCK_SIZE) + xOffset)] != 0)
+                                            {
+                                                if ((networkFrameData[runningLiteralsCountPosition] >= 0) && (networkFrameData[runningLiteralsCountPosition] <= 63))
+                                                {
+                                                    networkFrameData[runningLiteralsCountPosition]++;
+                                                }
+                                                else 
+                                                {
+                                                    runningLiteralsCountPosition = byteCounter;
+                                                    networkFrameData[runningLiteralsCountPosition] = 0;
+                                                    byteCounter++;
+                                                }
+                                                networkFrameData[byteCounter] = this.diffFrameY.image[(((blkY * DDCT_BLOCK_SIZE) + yOffset) * frameWidth) + ((blkX * DDCT_BLOCK_SIZE) + xOffset)];
+                                                byteCounter++;
+                                            }
+                                            else
+                                            {
+                                                if ((networkFrameData[runningLiteralsCountPosition] >= 64) && (networkFrameData[runningLiteralsCountPosition] <= 128))
+                                                {
+                                                    networkFrameData[runningLiteralsCountPosition]++;
+                                                }
+                                                else
+                                                {
+                                                    runningLiteralsCountPosition = byteCounter;
+                                                    networkFrameData[runningLiteralsCountPosition] = 64;
+                                                    byteCounter++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            //timestampView = (int)((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
+                            //Debug.WriteLine("Frame Time SendStart " + timestampView);
+                            NetworkFrame netFrame = new NetworkFrame(networkFrameData, byteCounter, GetNetworkFrameId(), this.timestamp);
+                            netFrame.SendFrame(this.udpSendClient, this.sessionId);
+                            //timestampView = (int)((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
+                            //Debug.WriteLine("Frame Time SendEnd " + timestampView);
+                        }
+
+                        if (exportJpeg)
+                        {
+                            byte[] jpegData = null;
+                            MemoryStream stream = new MemoryStream();
                             frame.DesktopImage.Save(stream, imageCodecInfo, encoderParameters);
                             jpegData = stream.ToArray();
+                            byte[] networkFrameData = new byte[jpegData.Length + 4];
+                            networkFrameData[0] = 0x6A;//j
+                            networkFrameData[1] = 0x70;//p
+                            networkFrameData[2] = 0x65;//e
+                            networkFrameData[3] = 0x67;//g
+                            //File.WriteAllBytes("foo.jpeg", result);
+                            for (int i = 0; i < (jpegData.Length); i++)
+                            {
+                                networkFrameData[i + 4] = jpegData[i];
+                            }
+                            NetworkFrame netFrame = new NetworkFrame(networkFrameData, GetNetworkFrameId(), this.timestamp);
+                            netFrame.SendFrame(this.udpSendClient, this.sessionId);
                         }
-                        //File.WriteAllBytes("foo.jpeg", result);
-
-                        NetworkFrame netFrame = new NetworkFrame(jpegData, GetNetworkFrameId(), this.timestamp);
-                        netFrame.SendFrame(this.udpSendClient, this.sessionId);
                     }
                 }
             }
+            //timestamp = (uint)((DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond) - startMilliseconds);
+            //Debug.WriteLine("Frame Time ED " + timestamp);
         }
     }
 }

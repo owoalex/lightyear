@@ -12,11 +12,21 @@ namespace lightyear_server_windows
         private byte[] data;
         private ushort frameId;
         private uint timestamp;
+        private int limit;
         public NetworkFrame(byte[] data, ushort frameId, uint timestamp) 
         {
             this.data = data;
             this.frameId = frameId;
             this.timestamp = timestamp;
+            this.limit = -1;
+        }
+
+        public NetworkFrame(byte[] data, int limit, ushort frameId, uint timestamp)
+        {
+            this.data = data;
+            this.frameId = frameId;
+            this.timestamp = timestamp;
+            this.limit = limit;
         }
 
         public void SendFrame(UdpClient udpClient, uint sessionId)
@@ -28,6 +38,9 @@ namespace lightyear_server_windows
 
             byte[] sendBytes = new byte[528];
             int bytesToSend = this.data.Length;
+            if (this.limit >= 0) {
+                bytesToSend = this.limit;
+            }
             ushort counter = 0;
 
             byte[] timestampBytes = BitConverter.GetBytes(this.timestamp);
@@ -43,21 +56,21 @@ namespace lightyear_server_windows
             byte[] csrcP1Bytes = BitConverter.GetBytes(frameId);
             headerBytes[12] = csrcP1Bytes[1];
             headerBytes[13] = csrcP1Bytes[0];
-            byte[] csrcP2Bytes = BitConverter.GetBytes((ushort) Math.Ceiling(data.Length / 512d));
+            byte[] csrcP2Bytes = BitConverter.GetBytes((ushort) Math.Ceiling(bytesToSend / 512d));
             headerBytes[14] = csrcP2Bytes[1];
             headerBytes[15] = csrcP2Bytes[0];
             try
             {
-                for (int i = 0; (i * 512) < this.data.Length; i++)
+                for (int i = 0; (i * 512) < bytesToSend; i++)
                 {
                     //byte[] counterBytes = BitConverter.GetBytes(counter);
                     headerBytes[2] = (byte)(counter >> 8); //counterBytes[1]; //(byte)(counter >> 8);
                     headerBytes[3] = (byte)(counter & 255);//counterBytes[0]; //(byte)(counter & 255);
 
                     int chunkLength = 512;
-                    if (((512 * i) + chunkLength) > this.data.Length)
+                    if (((512 * i) + chunkLength) > bytesToSend)
                     {
-                        chunkLength = this.data.Length - (512 * i);
+                        chunkLength = bytesToSend - (512 * i);
                     }
                     for (int j = 0; j < 16; j++) {
                         sendBytes[j] = headerBytes[j];
