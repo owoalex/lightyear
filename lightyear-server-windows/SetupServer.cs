@@ -77,7 +77,7 @@ namespace lightyear_server_windows
                                 jsonReturnObject["resolution"] = new JArray();
                                 JArray returnResolution = (JArray) jsonReturnObject["resolution"];
                                 returnResolution.Add(1920);
-                                returnResolution.Add(1200);
+                                returnResolution.Add(1080);
                                 returnMessage = System.Text.Encoding.UTF8.GetBytes(jsonReturnObject.ToString());
                                 break;
                             default:
