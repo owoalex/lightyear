@@ -148,6 +148,7 @@ namespace lightyear_server_windows
                 }
                 catch
                 {
+                    Console.WriteLine("Bruh");
                     desktopDuplicator = new DesktopDuplicator(0);
                     frame = null;
                 }

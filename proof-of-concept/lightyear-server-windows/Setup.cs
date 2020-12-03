@@ -52,5 +52,10 @@ namespace lightyear_server_windows
         {
 
         }
+
+        private void Setup_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }
