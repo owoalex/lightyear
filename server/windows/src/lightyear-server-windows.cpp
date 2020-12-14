@@ -7,6 +7,7 @@
 //============================================================================
 
 #include <iostream>
+#include <winsock2.h>
 #include <windows.h>
 #include <shlobj.h>
 #include <shellapi.h>
@@ -15,9 +16,6 @@
 #include <memory>
 #include <algorithm>
 #include <string>
-
-#define WIN32_LEAN_AND_MEAN
-#pragma comment(lib, "D3D11.lib")
 
 template <typename T>
 class CComPtrCustom {
@@ -454,10 +452,11 @@ void captureFrame(VisualFrame* pFrame) {
 
 		//lGDIImage
 
+		//printf("Pointer to info: %16x", 32523);
+
 		// Copy image into CPU access texture
 
 		lImmediateContext->CopyResource(lDestImage, lGDIImage);
-
 
 		// Copy from CPU access texture to bitmap buffer
 
@@ -465,84 +464,37 @@ void captureFrame(VisualFrame* pFrame) {
 		UINT subresource = D3D11CalcSubresource(0, 0, 0);
 		lImmediateContext->Map(lDestImage, subresource, D3D11_MAP_READ_WRITE, 0, &resource);
 
-		BITMAPINFO	lBmpInfo;
+		// Try to extract bytes
 
-		// BMP 32 bpp
+		D3D11_TEXTURE2D_DESC descOutput;
+		lGDIImage->GetDesc(&descOutput);
 
-		ZeroMemory(&lBmpInfo, sizeof(BITMAPINFO));
+		printf("Pointer to (Destination) info: 0x%08x\n", &descOutput);
+		printf("Image width: %d\n", desc.Width);
+		printf("Image height: %d\n", desc.Height);
 
-		lBmpInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-
-		lBmpInfo.bmiHeader.biBitCount = 32;
-
-		lBmpInfo.bmiHeader.biCompression = BI_RGB;
-
-		lBmpInfo.bmiHeader.biWidth = lOutputDuplDesc.ModeDesc.Width;
-
-		lBmpInfo.bmiHeader.biHeight = lOutputDuplDesc.ModeDesc.Height;
-
-		lBmpInfo.bmiHeader.biPlanes = 1;
-
-		lBmpInfo.bmiHeader.biSizeImage = lOutputDuplDesc.ModeDesc.Width
-			* lOutputDuplDesc.ModeDesc.Height * 4;
+		//printf("Pointer to (Destination) data: 0x%08x\n", resource.pData);
 
 
-		std::unique_ptr<BYTE> pBuf(new BYTE[lBmpInfo.bmiHeader.biSizeImage]);
 
+		pFrame->width = desc.Width;
+		pFrame->height = desc.Height;
+		pFrame->pData = (uint8_t*) malloc(pFrame->width * pFrame->height * 3);
+		//uint32_t width;
+		//	uint32_t height;
+		//	uint8_t* pData;
 
-		UINT lBmpRowPitch = lOutputDuplDesc.ModeDesc.Width * 4;
-
-		BYTE* sptr = reinterpret_cast<BYTE*>(resource.pData);
-		BYTE* dptr = pBuf.get() + lBmpInfo.bmiHeader.biSizeImage - lBmpRowPitch;
-
-		UINT lRowPitch = std::min<UINT>(lBmpRowPitch, resource.RowPitch);
-
-
-		for (size_t h = 0; h < lOutputDuplDesc.ModeDesc.Height; ++h)
-		{
-
-			memcpy_s(dptr, lBmpRowPitch, sptr, lRowPitch);
-			sptr += resource.RowPitch;
-			dptr -= lBmpRowPitch;
-		}
-
-		// Save bitmap buffer into the file ScreenShot.bmp
-
-		int maxPathLength = 260;
-
-		char* lFilePath = "C:\\Users\\Alex\\Pictures\\ScreenShot.bmp";
-
-		std::cout << "Attempt to save to: ";
-		std::cout << lFilePath << std::endl;
-
-		FILE* lfile = nullptr;
-
-		auto lerr = fopen_s(&lfile, lFilePath, "wb");
-
-		if (lerr != 0)
-			break;
-
-		if (lfile != nullptr)
-		{
-
-			BITMAPFILEHEADER	bmpFileHeader;
-
-			bmpFileHeader.bfReserved1 = 0;
-			bmpFileHeader.bfReserved2 = 0;
-			bmpFileHeader.bfSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + lBmpInfo.bmiHeader.biSizeImage;
-			bmpFileHeader.bfType = 'MB';
-			bmpFileHeader.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-
-			fwrite(&bmpFileHeader, sizeof(BITMAPFILEHEADER), 1, lfile);
-			fwrite(&lBmpInfo.bmiHeader, sizeof(BITMAPINFOHEADER), 1, lfile);
-			fwrite(pBuf.get(), lBmpInfo.bmiHeader.biSizeImage, 1, lfile);
-
-			fclose(lfile);
-
-			//ShellExecute(0, 0, lFilePath, 0, 0, SW_SHOW);
-			std::cout << "Saved to: ";
-			std::cout << lFilePath << std::endl;
-
+		byte* colorGroupPointer = nullptr;
+		//byte r;
+		//byte g;
+		//byte b;
+		for (int y = 0; y < pFrame->height; y++) {
+			for (int x = 0; x < pFrame->width; x++) {
+				colorGroupPointer = (uint8_t*) (resource.pData + ((x + (y * pFrame->width)) * 4));
+				pFrame->pData[((x + (y * pFrame->width)) * 3) + 0] = *(colorGroupPointer + 0);
+				pFrame->pData[((x + (y * pFrame->width)) * 3) + 1] = *(colorGroupPointer + 1);
+				pFrame->pData[((x + (y * pFrame->width)) * 3) + 2] = *(colorGroupPointer + 2);
+			}
 		}
 
 	} while (false);
@@ -558,6 +510,21 @@ int main() {
 
 	VisualFrame* pFrame = newFrame(1920, 1080);
 	captureFrame(pFrame);
+
+	for (int y = 0; y < 64; y++) {
+		for (int x = 0; x < 128; x++) {
+			uint8_t* colorGroupPointer = (uint8_t*) (pFrame->pData + ((x + (y * pFrame->width)) * 3));
+			uint8_t r = *(colorGroupPointer);
+			uint8_t g = *(colorGroupPointer + 1);
+			uint8_t b = *(colorGroupPointer + 2);
+			if (r+g+b > (200 * 3)) {
+				printf("##");
+			} else {
+				printf("  ");
+			}
+		}
+		printf("\n");
+	}
 
 	return 0;
 }
